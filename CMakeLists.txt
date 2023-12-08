@@ -1,0 +1,26 @@
+﻿cmake_minimum_required(VERSION 3.10)
+project(qlog LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)  
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE})
+
+#set(CMAKE_PREFIX_PATH "C:/Qt6/6.6.1/msvc2019_64")
+#find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+
+#qt_standard_project_setup()
+
+set(SOURCE_FILES 
+    "src/main.cpp"
+    "src/mylog.h"
+    "src/qlog.h"
+)
+
+add_executable(${PROJECT_NAME} ${SOURCE_FILES})
+
+#target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core)
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_FILES})
