@@ -76,23 +76,27 @@ namespace ray::log
     };
 
     // 日志内容流
-    class Stream
+    class Stream final : public QTextStream
     {
     public:
         using Ptr = std::shared_ptr<Stream>;
+        Stream()
+        {
+            setString(&_string);
+        }
         QString str() const
         {
             return _string;
         }
-        template <typename T>
-        Stream& operator<<(T&& t)
-        {
-            QTextStream stream(&_string);
-            stream << t;
-            return *this;
-        }
+        //template <typename T>
+        //Stream& operator<<(T&& t)
+        //{
+        //    QTextStream stream(&_string);
+        //    stream << t;
+        //    return *this;
+        //}
     private:
-        QByteArray _string;
+        QString _string;
     };
 
     // 工具类

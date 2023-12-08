@@ -39,7 +39,7 @@ int main(int argc, char* argv)
         public:
             QString format(const ray::log::Event::Ptr& logEvent) const override
             {
-                return  logEvent->content.str();
+                return logEvent->content.str();
             }
         };
         appender->setFormatter(std::make_shared<MyFormatter>());
