@@ -10,13 +10,13 @@ class A
 {
 private:
     double num      = 2022.0606;
-    std::string str = "object A";
+    QString str = "object A";
 
 public:
     friend void operator<<(log::LogStream& s, A a)
     {
         // s << "a.num: " << a.num << " a.str: " << a.str;
-        s << std::format("[a.num: {} a.str: {}]", a.num, a.str.c_str());
+        s << QString("[a.num: %1 a.str: %2]").arg(a.num, 9, 'f', 4).arg(a.str);
     }
 };
 
