@@ -67,7 +67,6 @@ namespace ray::log
 #define DISABLE_CONSOLE 0
 #endif
 // clang-format on
-    class LogRegistry;
     class Event;
 
     // 日志级别
@@ -82,12 +81,12 @@ namespace ray::log
     };
 
     // 日志内容流
-    class LogStream : public std::ostringstream
+    class Stream : public std::ostringstream
     {
     public:
-        using Ptr = std::shared_ptr<LogStream>;
+        using Ptr = std::shared_ptr<Stream>;
 #ifdef USE_QT
-        // LogStream& operator<<(const QString& str) {
+        // Stream& operator<<(const QString& str) {
         //  *this << str.toStdString();
         //  return *this;
         // }
@@ -140,7 +139,7 @@ namespace ray::log
         // 线程ID
         uint32_t threadId = 0;
         // 日志内容
-        LogStream content;
+        Stream content;
 
         // 本次的格式化方法，如果为空则使用，appender自己的格式化方法。
         Formatter::Ptr formatter;

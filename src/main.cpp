@@ -13,7 +13,7 @@ private:
     std::string str = "object A";
 
 public:
-    friend void operator<<(log::LogStream& s, A a)
+    friend void operator<<(log::Stream& s, A a)
     {
         // s << "a.num: " << a.num << " a.str: " << a.str;
         s << std::format("[a.num: {} a.str: {}]", a.num, a.str.c_str());
