@@ -37,8 +37,8 @@ int main(int argc, char* argv)
     if (const auto& appender = log::AppenderRegistry::instance().get("console")) {
         appender->setLevel(log::Level::Debug);
     }
-    log::log(log::Level::Debug) << "invisible message in file";
-    log::log(log::Level::Error) << "visible message in file";
+    log::log(log::Level::Debug) << "invisible message";
+    log::log(log::Level::Error) << "visible message";
 
     log::Logger(__FILE__, __LINE__, log::Level::Debug).log(std::format("{}, {}, {:.2f}, {}\n", 1, 2, 4.1, "Debug All"));
     // 没必要的换行

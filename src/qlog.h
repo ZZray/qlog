@@ -21,6 +21,7 @@
 #include <filesystem>
 #include <chrono>
 #include <format>
+#include <source_location>
 
 #ifdef _HAS_STD_BYTE
 #undef _HAS_STD_BYTE
@@ -42,35 +43,35 @@
 namespace ray::log
 {
     // 在外部可以重定义这个参数，内置的两个日志输出器。
-#ifndef console
-#define console Logger(__FILE__, __LINE__, ray::log::LogLevel::Debug, {"console"})
-// #define console_debug Logger(__FILE__, __LINE__, LogLevel::Debug, {"console"})
-#endif
-// file logger
-#ifndef flogger
-#define flogger Logger(__FILE__, __LINE__, ray::log::LogLevel::Info, {"file"})
-#endif
-// global_logger
-#ifndef glogger
-#define glogger Logger(__FILE__, __LINE__, ray::log::LogLevel::Info)
-#endif
-// 不传入appender默认会调用这些appender进行日志记录
+    //#ifndef console
+    //#define console Logger(__FILE__, __LINE__, ray::log::Level::Debug, {"console"})
+    //// #define console_debug Logger(__FILE__, __LINE__, Level::Debug, {"console"})
+    //#endif
+    //// file logger
+    //#ifndef flogger
+    //#define flogger Logger(__FILE__, __LINE__, ray::log::Level::Info, {"file"})
+    //#endif
+    //// global_logger
+    //#ifndef glogger
+    //#define glogger Logger(__FILE__, __LINE__, ray::log::Level::Info)
+    //#endif
+
+    // 不传入appender默认会调用这些appender进行日志记录
+    // clang-format off
 #ifndef DEFAULT_APPENDERS
-#define DEFAULT_APPENDERS                                                                                                                                                                              \
-    {                                                                                                                                                                                                  \
-        "file", "console"                                                                                                                                                                              \
-    }
+#define DEFAULT_APPENDERS    {"file", "console"}
 #endif
 
 // 是否开启控制台输出
 #ifndef DISABLE_CONSOLE
 #define DISABLE_CONSOLE 0
 #endif
-
+// clang-format on
     class LogRegistry;
-    class LogEvent;
+    class Event;
+
     // 日志级别
-    enum class LogLevel
+    enum class Level
     {
         Unknown = 0,
         Debug,
@@ -92,43 +93,44 @@ namespace ray::log
         // }
 #endif
     };
+
     // 工具类
-    class LogUtils
+    class Utils
     {
     public:
-        // 建议升级c++20，又快又安全
-        // c++20 std::cout << std::format("Hello {}!\n", "world");
         template <typename... Args>
         static std::string string_format(const char* format, Args... args);
         // 将leve转为字符串
-        inline static std::string levelToString(LogLevel level);
+        inline static std::string levelToString(Level level);
         // 通过文件路径分割出文件名
         static std::string getFilename(const std::string& filepath);
     };
-    // 日志格式化类, 根据特定格式，将数据格格式化成字符串。
-    class LogFormatter
-    {
-    public:
-        virtual ~LogFormatter() = default;
-        using Ptr = std::shared_ptr<LogFormatter>;
-        //
-        virtual std::string format(std::shared_ptr<LogEvent> logEvent);
-    };
-    // 日志事件, 每次写日志其实是一个事件，同步事件直接写，如果是异步事件则加入到日志记录的事件循环。
-    class LogEvent /*: std::enable_shared_from_this<LogEvent>*/
-    {
-    public:
-        using Ptr = std::shared_ptr<LogEvent>;
 
-        LogEvent()
-            : level(LogLevel::Debug)
+    // 日志格式化类, 根据特定格式，将数据格格式化成字符串。
+    class Formatter
+    {
+    public:
+        virtual ~Formatter() = default;
+        using Ptr = std::shared_ptr<Formatter>;
+        //
+        virtual std::string format(std::shared_ptr<Event> logEvent);
+    };
+
+    // 日志事件, 每次写日志其实是一个事件，同步事件直接写，如果是异步事件则加入到日志记录的事件循环。
+    class Event /*: std::enable_shared_from_this<Event>*/
+    {
+    public:
+        using Ptr = std::shared_ptr<Event>;
+
+        Event()
+            : level(Level::Debug)
         { }
 
         // 当前时间
         // std::shared_ptr<struct tm> time;
         int64_t time = 0;
         // 等级
-        LogLevel level;
+        Level level;
         // 错误码
         int code = 0;
         // 行号
@@ -141,13 +143,13 @@ namespace ray::log
         LogStream content;
 
         // 本次的格式化方法，如果为空则使用，appender自己的格式化方法。
-        LogFormatter::Ptr formatter;
+        Formatter::Ptr formatter;
         // key
         std::string key = "global";
         // std::string pattern;
 
         // 转为流
-        // std::string toString(LogFormatter::Ptr formatter) {
+        // std::string toString(Formatter::Ptr formatter) {
         //  return formatter->format(shared_from_this());
         //}
     };
@@ -160,13 +162,19 @@ namespace ray::log
         virtual ~Logger();
         /**
          * @brief 构造函数
+         * @param file
+         * @param line
+         * @param level
          * @param[in] appenders 本次的日志要记录在哪儿，默认全部的appender
          */
-        explicit Logger(const std::string& file, uint32_t line, LogLevel level = LogLevel::Info, std::list<std::string> appenders = {});
-        explicit Logger(const std::string& key, const std::string& file, uint32_t line, LogLevel level = LogLevel::Info, std::list<std::string> appenders = {});
+        explicit Logger(const std::string& file = std::source_location::current().file_name(),
+            uint32_t line = std::source_location::current().line(),
+            Level level = Level::Info,
+            std::list<std::string> appenders = {});
+        explicit Logger(const std::string& key, const std::string& file, uint32_t line, Level level = Level::Info, std::list<std::string> appenders = {});
         /**
          * @brief 写日志
-         * @usage: Logger(LogLevel::Debug).log("%d, %d, %.2f, %s", 1, 2, 4.1, "hello");
+         * @usage: Logger(Level::Debug).log("%d, %d, %.2f, %s", 1, 2, 4.1, "hello");
          */
         template <typename T = const char*, typename... Args>
         void log(T format, Args... args);
@@ -190,13 +198,13 @@ namespace ray::log
         template <class T>
         Logger& operator<<(const T& s);
         // 设置等级
-        Logger& set_level(LogLevel level);
+        Logger& set_level(Level level);
         // 错误码
         Logger& set_code(int code);
         // 设置appender
         Logger& set_appenders(std::list<std::string> appenders);
         // 设置格式
-        Logger& set_formatter(LogFormatter::Ptr formatter);
+        Logger& set_formatter(Formatter::Ptr formatter);
         // 行号
         Logger& set_line(uint32_t line);
         // 文件
@@ -205,10 +213,10 @@ namespace ray::log
         //  return *this;
         // }
         Logger& set_key(const std::string& key);
-        Logger& operator()(LogLevel);
+        Logger& operator()(Level);
 
         template <typename T = const char*>
-        std::string format(T message, LogFormatter::Ptr formatter = nullptr);
+        std::string format(T message, Formatter::Ptr formatter = nullptr);
 
     public:
         // time() 与 console.timeEnd() 用来计算一段程序的运行时间。
@@ -218,43 +226,47 @@ namespace ray::log
         uint32_t timeEnd(std::chrono::time_point<std::chrono::high_resolution_clock> start, std::string label);
 
     private:
-        LogEvent::Ptr _logEvent;
+        Event::Ptr _logEvent;
         std::list<std::string> _appenders;
     };
+
     // 负责写日志的组件, 每一个appender有自己的level等级
 #ifdef USE_QT
-    class LogAppender : public QObject
+    class Appender : public QObject
     {
 #else
-    class LogAppender
+    class Appender
     {
 #endif
+
     public:
-        virtual ~LogAppender() = default;
-        using Ptr = std::shared_ptr<LogAppender>;
-        void setLevel(LogLevel level) { _level = level; }
-        LogLevel level() { return _level; };
+        virtual ~Appender() = default;
+        using Ptr = std::shared_ptr<Appender>;
+        void setLevel(Level level) { _level = level; }
+        Level level() { return _level; };
         // void setPattern();
-        void setFormatter(LogFormatter::Ptr formatter) { _formatter = formatter; }
+        void setFormatter(Formatter::Ptr formatter) { _formatter = formatter; }
         // 写日志
-        bool write(LogEvent::Ptr);
-        virtual bool flush(const LogEvent::Ptr) = 0;
+        bool write(Event::Ptr);
+        virtual bool flush(const Event::Ptr) = 0;
 
     protected:
-        LogFormatter::Ptr getFormatter(LogEvent::Ptr);
+        Formatter::Ptr getFormatter(Event::Ptr);
 
     protected:
-        LogLevel _level = LogLevel::Info;
-        LogFormatter::Ptr _formatter;
+        Level _level = Level::Info;
+        Formatter::Ptr _formatter;
 
         std::mutex _mtxFlush;
     };
-    class ConsoleAppender : public LogAppender
+
+    class ConsoleAppender : public Appender
     {
     public:
-        ConsoleAppender() { _level = LogLevel::Debug; }
-        bool flush(const LogEvent::Ptr) override;
+        ConsoleAppender() { _level = Level::Debug; }
+        bool flush(const Event::Ptr) override;
     };
+
     // class FileSplitPerDay {};
     // template <class FileSplitPolicy = FileSplitPerDay>
     // inline constexpr long double operator "" MB(long double v)
@@ -262,19 +274,20 @@ namespace ray::log
     //  return v;
     // }
 #define MB
-    class FileAppender : public LogAppender
+
+    class FileAppender : public Appender
     {
     public:
     public:
         FileAppender();
         virtual ~FileAppender();
         // 接收日志事件和FileAppender并返回新的文件名。如果文件名不变则不会进行分割。
-        using FileSplitPolicy = std::function<std::string(LogEvent::Ptr, FileAppender&)>;
+        using FileSplitPolicy = std::function<std::string(Event::Ptr, FileAppender&)>;
         // 设置最后路径，最好不要加最后一个/
         void setBasePath(const std::string& basePath);
         void setPath(const std::string& path);
         // 刷新日志内容
-        bool flush(const LogEvent::Ptr) override;
+        bool flush(const Event::Ptr) override;
         // 设置文件分割策略
         void setFileSplitPolicy(const FileSplitPolicy& cb);
         // 设置根据
@@ -288,7 +301,7 @@ namespace ray::log
         std::string basePath() const;
 
     private:
-        bool resetFile(LogEvent::Ptr);
+        bool resetFile(Event::Ptr);
 
     private:
         std::ofstream _file;
@@ -301,15 +314,17 @@ namespace ray::log
         // 文件分割策略
         FileSplitPolicy _fileSplitPolicy = nullptr;
     };
+
     // 日志appender工厂
     class AppenderFactory
     {
     public:
-        using CreateMethod = std::function<LogAppender::Ptr()>;
+        using CreateMethod = std::function<Appender::Ptr()>;
         // 利用注册的方法创建appender实例
-        LogAppender::Ptr create(const std::string& name);
+        Appender::Ptr create(const std::string& name);
         // 注册创建appender的方法
         void registerCreateMethod(const std::string& name, CreateMethod);
+
         void clear()
         {
             std::lock_guard<std::shared_mutex> lock(_mutex);
@@ -322,7 +337,7 @@ namespace ray::log
 
     private:
         // 不用if else
-        std::map<std::string, std::function<LogAppender::Ptr()>> _appenders;
+        std::map<std::string, std::function<Appender::Ptr()>> _appenders;
 
         std::shared_mutex _mutex;
     };
@@ -332,7 +347,7 @@ namespace ray::log
     {
     public:
         // 所有定义的logger都应该是单例的，这里存储了这些单例,  使用name可兼容同一个种appender多个实例，以便输出到不同的位置。
-        const LogAppender::Ptr get(const std::string& name);
+        const Appender::Ptr get(const std::string& name);
         void addAppenders(std::list<std::string> appenders);
         void clear();
         // 获取所有的appender名
@@ -343,21 +358,22 @@ namespace ray::log
         AppenderRegistry() = default;
 
     private:
-        std::map<std::string, LogAppender::Ptr> _appenders;
+        std::map<std::string, Appender::Ptr> _appenders;
         std::shared_mutex _mutex;
     };
-    // std::map<std::string, LogAppender::Ptr> AppenderRegistry::_appenders;
+
+    // std::map<std::string, Appender::Ptr> AppenderRegistry::_appenders;
     //////////////////////////   实现代码   ///////////////////
     // =============    Logger    ============
-    inline Logger::Logger(const std::string& file, uint32_t line, LogLevel level, std::list<std::string> appenders /*= {}*/)
+    inline Logger::Logger(const std::string& file, uint32_t line, Level level, std::list<std::string> appenders /*= {}*/)
         : Logger("global", file, line, level, appenders)
 
     { }
 
-    inline Logger::Logger(const std::string& key, const std::string& file, uint32_t line, LogLevel level, std::list<std::string> appenders)
+    inline Logger::Logger(const std::string& key, const std::string& file, uint32_t line, Level level, std::list<std::string> appenders)
     {
         using namespace std::chrono;
-        _logEvent = std::make_shared<LogEvent>();
+        _logEvent = std::make_shared<Event>();
         _appenders = appenders;
         _logEvent->level = level;
         _logEvent->line = line;
@@ -367,9 +383,9 @@ namespace ray::log
         _logEvent->time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
         auto tid = std::this_thread::get_id();
-        _logEvent->threadId = (*(uint32_t*)&tid);
-        ;
+        _logEvent->threadId = (*(uint32_t*)&tid);;
     }
+
     inline Logger::~Logger()
     {
         flush();
@@ -402,31 +418,33 @@ namespace ray::log
         }
     }
 
-    inline ray::log::Logger& Logger::operator()(LogLevel level)
+    inline ray::log::Logger& Logger::operator()(Level level)
     {
         _logEvent->level = level;
         return *this;
     }
+
     inline ray::log::AppenderRegistry& AppenderRegistry::instance()
     {
         static std::once_flag _flag;
         static std::unique_ptr<AppenderRegistry> _self;
-        std::call_once(_flag, [&] {
+        std::call_once(_flag,
+            [&] {
             _self.reset(new AppenderRegistry);
         });
         return *_self;
     }
 
     // =========================  formatter
-    inline std::string LogFormatter::format(LogEvent::Ptr logEvent)
+    inline std::string Formatter::format(Event::Ptr logEvent)
     {
 #ifdef USE_QT
         std::string logHead = std::format("[{}][{}][{}][{}][{}:{}] ",
-            LogUtils::levelToString(logEvent->level).c_str(),
+            Utils::levelToString(logEvent->level).c_str(),
             QDateTime::fromMSecsSinceEpoch(logEvent->time).toString("yyyy-MM-dd hh:mm:ss.zzz").toStdString().c_str(),
             logEvent->threadId,
             logEvent->code,
-            LogUtils::getFilename(logEvent->file).c_str(),
+            Utils::getFilename(logEvent->file).c_str(),
             logEvent->line);
 #else
         const auto sec = logEvent->time / 1000;
@@ -434,8 +452,8 @@ namespace ray::log
         int year = time->tm_year + 1900;
         int month = time->tm_mon + 1;
         int day = time->tm_mday;
-        std::string logHead = LogUtils::string_format("[%s][%d-%02d-%02d %02d:%02d:%02d][%ld][%s:%ld] ",
-            LogUtils::levelToString(logEvent->level).c_str(),
+        const auto& logHead = std::format("[{0}][{1}-{2:02d}-{3:02d} {4:02d}:{5:02d}:{6:02d}][{7}][{8}:{9}] ",
+            Utils::levelToString(logEvent->level),
             1900 + time->tm_year,
             time->tm_mon + 1,
             time->tm_mday,
@@ -443,26 +461,27 @@ namespace ray::log
             time->tm_min,
             time->tm_sec,
             logEvent->threadId,
-            LogUtils::getFilename(logEvent->file).c_str(),
+            Utils::getFilename(logEvent->file),
             logEvent->line);
 #endif
         return logHead + logEvent->content.str();
     }
 
-    //=========================    LogUtils
-    inline std::string LogUtils::levelToString(LogLevel level)
+    //=========================    Utils
+    inline std::string Utils::levelToString(Level level)
     {
         switch (level) {
-        case ray::log::LogLevel::Debug: return "DEBUG";
-        case ray::log::LogLevel::Info: return "INFO ";
-        case ray::log::LogLevel::Warning: return "WARN ";
-        case ray::log::LogLevel::Error: return "ERROR";
-        case ray::log::LogLevel::Fatal: return "FATAL";
+        case ray::log::Level::Debug: return "DEBUG";
+        case ray::log::Level::Info: return "INFO ";
+        case ray::log::Level::Warning: return "WARN ";
+        case ray::log::Level::Error: return "ERROR";
+        case ray::log::Level::Fatal: return "FATAL";
         default: break;
         }
         return "Unknown";
     }
-    inline std::string LogUtils::getFilename(const std::string& filepath)
+
+    inline std::string Utils::getFilename(const std::string& filepath)
     {
         auto pos = filepath.find_last_of("/");
         if (pos == filepath.npos) {
@@ -478,18 +497,23 @@ namespace ray::log
     inline AppenderFactory::AppenderFactory()
     {
         _appenders = {
-            {"console",
-             [] {
-                 return std::make_shared<ConsoleAppender>();
-             }},
-            {"file",
-             [] {
-                 return std::make_shared<FileAppender>();
-             }}
+            {
+                "console",
+                [] {
+                    return std::make_shared<ConsoleAppender>();
+                }
+            },
+            {
+                "file",
+                [] {
+                    return std::make_shared<FileAppender>();
+                }
+            }
             // add your appenders through registerCreateMethod
         };
     }
-    inline LogAppender::Ptr AppenderFactory::create(const std::string& name)
+
+    inline Appender::Ptr AppenderFactory::create(const std::string& name)
     {
         // std::lock_guard<std::mutex> lock(_mutex);
         std::shared_lock lockShared(AppenderFactory::_mutex);
@@ -512,7 +536,8 @@ namespace ray::log
     {
         static std::once_flag _flag;
         static std::unique_ptr<AppenderFactory> _self;
-        std::call_once(_flag, [&] {
+        std::call_once(_flag,
+            [&] {
             _self.reset(new AppenderFactory);
         });
         return *_self;
@@ -541,7 +566,7 @@ namespace ray::log
         _appenders.clear();
     }
 
-    inline const LogAppender::Ptr AppenderRegistry::get(const std::string& name)
+    inline const Appender::Ptr AppenderRegistry::get(const std::string& name)
     {
         // 这里提前创建好就不用加锁了
         // 延迟加载，多线程下不安全，加锁的话影响性能
@@ -555,6 +580,7 @@ namespace ray::log
         }
         return _appenders[name];
     }
+
     // std::list<std::string> AppenderRegistry::keys()
     //{
     //  std::list<std::string> keys;
@@ -565,19 +591,21 @@ namespace ray::log
     // }
 
     // =============================          appenders
-    inline bool LogAppender::write(LogEvent::Ptr event)
+    inline bool Appender::write(Event::Ptr event)
     {
         std::lock_guard lock(_mtxFlush);
         return flush(event);
     }
-    inline LogFormatter::Ptr LogAppender::getFormatter(LogEvent::Ptr event)
+
+    inline Formatter::Ptr Appender::getFormatter(Event::Ptr event)
     {
         if (!event->formatter && !_formatter) {
-            _formatter = std::make_shared<LogFormatter>();
+            _formatter = std::make_shared<Formatter>();
         }
         return (event->formatter ? event->formatter : _formatter);
     }
-    inline bool ConsoleAppender::flush(LogEvent::Ptr event)
+
+    inline bool ConsoleAppender::flush(Event::Ptr event)
     {
         auto formatter = getFormatter(event);
 #ifdef USE_QT
@@ -592,12 +620,12 @@ namespace ray::log
         static constexpr const char* RESET = "\033[0m";
         const char* colorCode;
         switch (event->level) {
-        case LogLevel::Debug: colorCode = BLUE; break;
-        case LogLevel::Info: colorCode = GREEN; break;
-        case LogLevel::Warning: colorCode = YELLOW; break;
-        case LogLevel::Error: colorCode = RED; break;
-        case LogLevel::Fatal: colorCode = MAGENTA; break;
-        default: // LogLevel::Unknown 或其他未知级别
+        case Level::Debug: colorCode = BLUE; break;
+        case Level::Info: colorCode = GREEN; break;
+        case Level::Warning: colorCode = YELLOW; break;
+        case Level::Error: colorCode = RED; break;
+        case Level::Fatal: colorCode = MAGENTA; break;
+        default: // Level::Unknown 或其他未知级别
             colorCode = WHITE;
             break;
         }
@@ -618,7 +646,7 @@ namespace ray::log
         _basePath = QApplication::applicationDirPath().toStdString() + "/";
 #endif
         _basePath += "log";
-        setLevel(LogLevel::Info);
+        setLevel(Level::Info);
     }
 
     inline FileAppender::~FileAppender()
@@ -628,6 +656,7 @@ namespace ray::log
             _file.close();
         }
     }
+
     inline void FileAppender::setBasePath(const std::string& basePath)
     {
         _basePath = basePath;
@@ -665,10 +694,10 @@ namespace ray::log
         return _basePath;
     }
 
-    inline bool FileAppender::resetFile(LogEvent::Ptr event)
+    inline bool FileAppender::resetFile(Event::Ptr event)
     {
         if (_fileSplitPolicy == nullptr) {
-            _fileSplitPolicy = [](LogEvent::Ptr evt, FileAppender& appender) {
+            _fileSplitPolicy = [](Event::Ptr evt, FileAppender& appender) {
                 std::tm time;
                 const auto sTime = evt->time / 1000;
                 gmtime_s(&time, &sTime);
@@ -676,13 +705,13 @@ namespace ray::log
                 int month = time.tm_mon + 1;
                 int day = time.tm_mday;
                 // 根据年月重新设置路径
-                const std::string monthPath = LogUtils::string_format("%s/%d/%d/", appender.basePath().c_str(), year, month);
+                const std::string monthPath = std::format("{}/{}/{}/", appender.basePath().c_str(), year, month);
                 if (monthPath != appender.path()) {
                     std::filesystem::create_directories(monthPath);
                     appender.setPath(monthPath);
                 }
                 // 年月日发生了变化就会产生一个新的文件名, 如果文件名发生了变化就重新创建文件
-                std::string dayFilename = LogUtils::string_format("%d-%d-%d.log", year, month, day);
+                std::string dayFilename = std::format("{}-{}-{}.log", year, month, day);
                 if (dayFilename != appender.filename()
                     // 这种实现不太好，如果软件崩溃了，就会产生新的日志文件。
                     && dayFilename.compare(0, dayFilename.length() - 4, appender.filename().substr(0, dayFilename.length() - 4)) != 0) {
@@ -692,7 +721,7 @@ namespace ray::log
                 double filesize = appender.filesize() / 1024.0 / 1024.0;
                 if (filesize > 10.0 MB) {
                     //
-                    return LogUtils::string_format("%d-%d-%d_%d_%d_%d.log",
+                    return std::format("{}-{}-{}_{}_{}_{}.log",
                         year,
                         month,
                         day,
@@ -722,7 +751,8 @@ namespace ray::log
         }
         return true;
     }
-    inline bool FileAppender::flush(const LogEvent::Ptr event)
+
+    inline bool FileAppender::flush(const Event::Ptr event)
     {
         if (!resetFile(event)) {
             return false;
@@ -732,6 +762,7 @@ namespace ray::log
         _file.flush();
         return true;
     }
+
     template <class T>
     inline Logger& Logger::operator<<(const T& s)
     {
@@ -749,16 +780,19 @@ namespace ray::log
         // return _logEvent->content;
         return *this;
     }
-    inline Logger& Logger::set_level(LogLevel level)
+
+    inline Logger& Logger::set_level(Level level)
     {
         _logEvent->level = level;
         return *this;
     }
+
     inline Logger& Logger::set_code(int code)
     {
         _logEvent->code = code;
         return *this;
     }
+
     inline Logger& Logger::set_appenders(std::list<std::string> appenders)
     {
         _appenders.clear();
@@ -774,7 +808,7 @@ namespace ray::log
 
     inline Logger& Logger::set_file(std::string file)
     {
-        _logEvent->file = LogUtils::getFilename(file);
+        _logEvent->file = Utils::getFilename(file);
         return *this;
     }
 
@@ -784,71 +818,74 @@ namespace ray::log
         return *this;
     }
 
-    inline Logger& ray::log::Logger::set_formatter(LogFormatter::Ptr formatter)
+    inline Logger& ray::log::Logger::set_formatter(Formatter::Ptr formatter)
     {
         _logEvent->formatter = std::move(formatter);
         return *this;
     }
+
     // 记录日志
     template <typename T, typename... Args>
     void ray::log::Logger::log(T format, Args... args)
     {
         if constexpr (std::is_same_v<std::decay_t<T>, std::string>) {
-            _logEvent->content << LogUtils::string_format(format.c_str(), std::forward<Args>(args)...);
+            _logEvent->content << Utils::string_format(format.c_str(), std::forward<Args>(args)...);
         }
 #ifdef USE_QT
         else if constexpr (std::is_same_v<std::decay_t<T>, QString>) {
-            _logEvent->content << LogUtils::string_format(format.toStdString().c_str(), std::forward<Args>(args)...);
+            _logEvent->content << Utils::string_format(format.toStdString().c_str(), std::forward<Args>(args)...);
         }
 #endif
         else {
-            _logEvent->content << LogUtils::string_format(format, std::forward<Args>(args)...);
+            _logEvent->content << Utils::string_format(format, std::forward<Args>(args)...);
         }
     }
 
     template <typename T, typename... Args>
     void Logger::debug(T format, Args... args)
     {
-        _logEvent->level = LogLevel::Debug;
+        _logEvent->level = Level::Debug;
         log<T>(std::forward<T>(format), std::forward<Args>(args)...);
     }
 
     template <typename T, typename... Args>
     void Logger::info(T format, Args... args)
     {
-        _logEvent->level = LogLevel::Info;
+        _logEvent->level = Level::Info;
         log<T>(std::forward<T>(format), std::forward<Args>(args)...);
     }
 
     template <typename T, typename... Args>
     void Logger::warning(T format, Args... args)
     {
-        _logEvent->level = LogLevel::Warning;
+        _logEvent->level = Level::Warning;
         log<T>(std::forward<T>(format), std::forward<Args>(args)...);
     }
 
     template <typename T, typename... Args>
     void Logger::error(T format, Args... args)
     {
-        _logEvent->level = LogLevel::Error;
+        _logEvent->level = Level::Error;
         log<T>(std::forward<T>(format), std::forward<Args>(args)...);
     }
 
     template <typename T, typename... Args>
     void Logger::fatal(T format, Args... args)
     {
-        _logEvent->level = LogLevel::Fatal;
+        _logEvent->level = Level::Fatal;
         log<T>(std::forward<T>(format), std::forward<Args>(args)...);
     }
+
     template <typename T>
-    std::string Logger::format(T message, LogFormatter::Ptr formatter)
+    std::string Logger::format(T message, Formatter::Ptr formatter)
     {
         log<T>(std::forward<T>(message));
         if (formatter) {
             return formatter->format(_logEvent);
         }
-        return LogFormatter().format(_logEvent);
+        return Formatter().format(_logEvent);
     }
+
     // 时间统计
     std::chrono::time_point<std::chrono::high_resolution_clock> Logger::time()
     {
@@ -866,7 +903,7 @@ namespace ray::log
     }
 
     template <typename... Args>
-    std::string LogUtils::string_format(const char* format, Args... args)
+    std::string Utils::string_format(const char* format, Args... args)
     {
         int size_s = std::snprintf(nullptr, 0, format, args...) + 1; // Extra space for '\0'
         if (size_s <= 0) {
@@ -877,6 +914,22 @@ namespace ray::log
         std::snprintf(buf.get(), size, format, args...);
         // result
         return std::string(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
+    }
+
+    // =======================  便捷方法 ========================
+    static Logger console(Level level = Level::Debug, const std::source_location& location = std::source_location::current())
+    {
+        return Logger(location.file_name(), location.line(), level, { "console" });
+    }
+
+    static Logger file(Level level = Level::Info, const std::source_location& location = std::source_location::current())
+    {
+        return Logger(location.file_name(), location.line(), level, { "file" });
+    }
+
+    static Logger log(Level level = Level::Info, const std::source_location& location = std::source_location::current())
+    {
+        return Logger(location.file_name(), location.line(), level);
     }
 } // namespace ray::log
 #endif // !__RAY_QLOG_HPP__
