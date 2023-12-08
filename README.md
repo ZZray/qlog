@@ -1,6 +1,6 @@
 # C++日志库
 
-如果使用Qt项目，为了避免QString与std::string转换的问题，推荐使用主分支。
+如果使用Qt项目，为了避免QString与std::string转换的问题，推荐使用QtLog分支。
 
 ## 特点
 
