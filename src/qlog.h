@@ -25,7 +25,6 @@
 #endif // _HAS_STD_BYTE
 #define _HAS_STD_BYTE 0
 
-#define USE_QT
 #include <QFile>
 #include <QDir>
 #include <QDateTime>
@@ -62,8 +61,8 @@ namespace ray::log
 #define DISABLE_CONSOLE 0
 #endif
 // clang-format on
-    class LogRegistry;
     class Event;
+    class Formatter;
 
     // 日志级别
     enum class Level
@@ -77,16 +76,23 @@ namespace ray::log
     };
 
     // 日志内容流
-    class LogStream : public QTextStream
+    class Stream
     {
     public:
-        using Ptr = std::shared_ptr<LogStream>;
-#ifdef USE_QT
-        // LogStream& operator<<(const QString& str) {
-        //  *this << str.toStdString();
-        //  return *this;
-        // }
-#endif
+        using Ptr = std::shared_ptr<Stream>;
+        QString str() const
+        {
+            return _string;
+        }
+        template <typename T>
+        Stream& operator<<(T&& t)
+        {
+            QTextStream stream(&_string);
+            stream << t;
+            return *this;
+        }
+    private:
+        QByteArray _string;
     };
 
     // 工具类
@@ -105,8 +111,7 @@ namespace ray::log
     public:
         virtual ~Formatter() = default;
         using Ptr = std::shared_ptr<Formatter>;
-        //
-        virtual QString format(const std::shared_ptr<Event>& logEvent);
+        virtual QString format(const std::shared_ptr<Event>& logEvent) const;
     };
 
     // 日志事件, 每次写日志其实是一个事件，同步事件直接写，如果是异步事件则加入到日志记录的事件循环。
@@ -133,7 +138,7 @@ namespace ray::log
         // 线程ID
         uint32_t threadId = 0;
         // 日志内容
-        LogStream content;
+        Stream content;
 
         // 本次的格式化方法，如果为空则使用，appender自己的格式化方法。
         Formatter::Ptr formatter;
@@ -376,7 +381,7 @@ namespace ray::log
         _logEvent->time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
         auto tid = std::this_thread::get_id();
-        _logEvent->threadId = (*(uint32_t*)&tid);;
+        _logEvent->threadId = (*(uint32_t*)&tid);
     }
 
     inline Logger::~Logger()
@@ -386,7 +391,7 @@ namespace ray::log
 
     inline void Logger::flush()
     {
-        if (_logEvent->content.atEnd()) {
+        if (_logEvent->content.str().isEmpty()) {
             return;
         }
         if (_appenders.empty()) {
@@ -429,7 +434,7 @@ namespace ray::log
     }
 
     // =========================  formatter
-    inline QString Formatter::format(const Event::Ptr& logEvent)
+    inline QString Formatter::format(const Event::Ptr& logEvent) const
     {
         const QString logHead = QString("[%1][%2][%3][%4][%5:%6] ")
             .arg(Utils::levelToString(logEvent->level))
@@ -438,7 +443,7 @@ namespace ray::log
             .arg(logEvent->code)
             .arg(Utils::getFilename(logEvent->file))
             .arg(logEvent->line);
-        return logHead + logEvent->content.readAll();
+        return logHead + logEvent->content.str();
     }
 
     //=========================    Utils

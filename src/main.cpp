@@ -9,21 +9,20 @@ using namespace ray;
 class A
 {
 private:
-    double num      = 2022.0606;
+    double num = 2022.0606;
     QString str = "object A";
 
 public:
-    friend void operator<<(log::LogStream& s, A a)
+    friend void operator<<(log::Stream& s, A a)
     {
         // s << "a.num: " << a.num << " a.str: " << a.str;
         s << QString("[a.num: %1 a.str: %2]").arg(a.num, 9, 'f', 4).arg(a.str);
     }
 };
-
 int main(int argc, char* argv)
 {
     // 初始化工作
-    log::AppenderRegistry::instance().addAppenders({"console", "file"});
+    log::AppenderRegistry::instance().addAppenders({ "console", "file" });
     if (const auto& appender = log::AppenderRegistry::instance().get("file")) {
         const auto fileAppender = std::dynamic_pointer_cast<log::FileAppender>(appender);
         // 设置日志路径
@@ -35,6 +34,15 @@ int main(int argc, char* argv)
         //
     }
     if (const auto& appender = log::AppenderRegistry::instance().get("console")) {
+        class MyFormatter : public ray::log::Formatter
+        {
+        public:
+            QString format(const ray::log::Event::Ptr& logEvent) const override
+            {
+                return  logEvent->content.str();
+            }
+        };
+        appender->setFormatter(std::make_shared<MyFormatter>());
         appender->setLevel(log::Level::Debug);
     }
     log::log(log::Level::Debug) << "invisible message in file";
@@ -44,7 +52,7 @@ int main(int argc, char* argv)
     // 没必要的换行
     log::Logger(__FILE__, __LINE__) << "Info All";
 
-    log::Logger(__FILE__, __LINE__,log:: Level::Info).set_appenders({"console"}).log("console info");
+    log::Logger(__FILE__, __LINE__, log::Level::Info).set_appenders({ "console" }).log("console info");
 
     log::console(log::Level::Error) << "console error msg";
     log::console().log("console debug : hello %s %.2f", "ray::log", 6.66666);
@@ -52,12 +60,12 @@ int main(int argc, char* argv)
     log::console().set_level(log::Level::Info).log("%d", 6666);
 
     const A a;
-     log::log(log::Level::Info) << "log class A: " << a;
+    log::log(log::Level::Info) << "log class A: " << a;
 
     // 多线程测试 console
     // console << "hello";
     const auto startTm = log::console().time();
-     log::console() << "multi thread test:";
+    log::console() << "multi thread test:";
     std::vector<std::future<void>> threadPool;
     // console log 1w
     for (int i = 0; i < 10000; ++i) {
