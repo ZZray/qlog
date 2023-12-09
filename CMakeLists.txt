@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.10)
-project(qlog LANGUAGES CXX)
+project(raylog LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)  
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,7 +17,7 @@ qt_standard_project_setup()
 set(SOURCE_FILES 
     "src/main.cpp"
     "src/mylog.h"
-    "src/qlog.h"
+    "src/raylog.h"
 )
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
