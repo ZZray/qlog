@@ -23,16 +23,26 @@ int main(int argc, char* argv)
 {
     // 初始化工作
     log::AppenderRegistry::instance().addAppenders({ "console", "file" });
+    
+    // 基本使用
+    logInfo() << "this is information";
+    logError() << "print object A: " << A();
+
+    // 设置输出到文件的日志等级
     if (const auto& appender = log::AppenderRegistry::instance().get("file")) {
         const auto fileAppender = std::dynamic_pointer_cast<log::FileAppender>(appender);
         // 设置日志路径
         fileAppender->setBasePath("log");
         // 设置输出到文件的日志等级
+        // 如果一条日志的等级小于Info，比如ray::log(ray::log::Level::Debug) << "debug information";
+        // 日志等级是Debug, fileAppender设置的等级是Info，则此条记录不会记录在文件中
         fileAppender->setLevel(log::Level::Info);
         // 设置文件分割策略回调, 内置分割策略在resetFile函数里面调用。
         // fileAppender->setFileSplitPolicy([](LogEvent::Ptr, FileAppender&) {return "log_file_name";});
         //
     }
+
+    // 自定义格式化输出
     if (const auto& appender = log::AppenderRegistry::instance().get("console")) {
         class MyFormatter : public ray::log::Formatter
         {
@@ -43,8 +53,11 @@ int main(int argc, char* argv)
             }
         };
         appender->setFormatter(std::make_shared<MyFormatter>());
+        // 等级大于等于Debug才会输出
         appender->setLevel(log::Level::Debug);
     }
+
+    // 其他
     log::log(log::Level::Debug) << "invisible message in file";
     log::log(log::Level::Error) << "visible message in file";
 
